@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0e1320">
+<title>打音法 固有振動数解析アプリ</title>
+<style>
+  :root{
+    --bg:#0e1320; --panel:#161d2e; --panel2:#1d2740; --line:#2b3656;
+    --txt:#e6ecff; --sub:#9fb0d6; --accent:#36d1c4; --accent2:#ffb454;
+    --warn:#ff5d6c; --grid:#23304e;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{overscroll-behavior:none}
+  body{margin:0; background:var(--bg); color:var(--txt);
+    font-family:-apple-system,"Hiragino Sans","Yu Gothic",system-ui,sans-serif; font-size:14px;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);}
+  header{padding:12px 16px; background:linear-gradient(90deg,#162038,#0e1320);
+    border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  header h1{font-size:16px; margin:0; font-weight:600}
+  header .tag{font-size:10px; color:var(--sub); border:1px solid var(--line); padding:2px 7px; border-radius:20px}
+  .status{margin-left:auto; display:flex; align-items:center; gap:7px; font-size:11px; color:var(--sub)}
+  .dot{width:9px;height:9px;border-radius:50%;background:#555;transition:.2s}
+  .dot.on{background:var(--accent); box-shadow:0 0 8px var(--accent)}
+  .dot.armed{background:var(--accent2); box-shadow:0 0 8px var(--accent2)}
+  .dot.rec{background:var(--warn); box-shadow:0 0 8px var(--warn); animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.4}}
+  .wrap{padding:14px 16px; max-width:1280px; margin:0 auto}
+  #secureWarn{display:none; background:#3a1b22; border:1px solid var(--warn); color:#ffd2d6;
+    border-radius:10px; padding:10px 12px; margin-bottom:12px; font-size:12px; line-height:1.6}
+  .controls{display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px;}
+  button{font-family:inherit; font-size:14px; cursor:pointer; border-radius:10px;
+    border:1px solid var(--line); background:var(--panel2); color:var(--txt); padding:11px 14px; transition:.12s;
+    font-weight:600; touch-action:manipulation; min-height:44px;}
+  button:active{transform:scale(.97)}
+  button:hover{border-color:var(--accent)}
+  button:disabled{opacity:.4}
+  button.primary{background:var(--accent); color:#062; border-color:transparent}
+  button.rec{background:var(--warn); color:#fff; border-color:transparent}
+  button.save{background:var(--panel2); border-color:var(--accent2); color:var(--accent2)}
+  .sep{width:1px; align-self:stretch; background:var(--line); margin:0 2px}
+  .field{display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--sub)}
+  .field select,.field input[type=number]{background:var(--bg); color:var(--txt); border:1px solid var(--line);
+    border-radius:8px; padding:9px 8px; font-family:inherit; font-size:16px; min-height:40px;}
+  .field.range{min-width:140px; flex:1}
+  input[type=range]{width:100%; accent-color:var(--accent); height:30px}
+  .chk{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--sub); min-height:40px}
+  .chk input{width:20px; height:20px; accent-color:var(--accent)}
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden}
+  .card h2{margin:0; font-size:12px; font-weight:600; padding:9px 12px; border-bottom:1px solid var(--line);
+    color:var(--sub); display:flex; justify-content:space-between; align-items:center; gap:6px;}
+  .card h2 .val{color:var(--accent); font-variant-numeric:tabular-nums; font-weight:700}
+  canvas{display:block; width:100%; background:#0a0f1a; touch-action:none}
+  .peaks{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; margin-top:12px}
+  .peaks h2{margin:0 0 10px; font-size:13px; color:var(--sub)}
+  .freqbig{font-size:48px; font-weight:800; color:var(--accent); font-variant-numeric:tabular-nums; line-height:1; transition:color .15s}
+  .freqbig.hold{color:var(--accent2)}
+  .freqbig small{font-size:18px; color:var(--sub); font-weight:500; margin-left:6px}
+  .holdbar{height:5px; background:var(--panel2); border-radius:3px; margin-top:8px; overflow:hidden}
+  .holdbar > div{height:100%; background:var(--accent2); width:0%}
+  table{width:100%; border-collapse:collapse; margin-top:10px; font-size:13px}
+  th,td{text-align:right; padding:7px 8px; border-bottom:1px solid var(--grid); font-variant-numeric:tabular-nums}
+  th{color:var(--sub); font-weight:600}
+  th:first-child,td:first-child{text-align:left}
+  td.idx{color:var(--accent2); font-weight:700}
+  .hint{font-size:11px; color:var(--sub); margin-top:6px; line-height:1.6}
+  .log{margin-top:12px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px}
+  .log h2{margin:0 0 8px; font-size:13px; color:var(--sub); display:flex; justify-content:space-between; gap:6px; flex-wrap:wrap}
+  .logtable{max-height:240px; overflow:auto; -webkit-overflow-scrolling:touch}
+  footer{padding:16px; color:var(--sub); font-size:11px; text-align:center; border-top:1px solid var(--line); margin-top:18px; line-height:1.7}
+  .twocol{display:grid; grid-template-columns:1fr 320px; gap:12px; align-items:start}
+  /* ===== モバイル ===== */
+  @media(max-width:760px){
+    .grid{grid-template-columns:1fr}
+    .twocol{grid-template-columns:1fr}
+    header h1{font-size:15px}
+    .field.range{min-width:120px}
+    .controls{gap:7px; padding:10px}
+    button{flex:1 1 auto}
+    .freqbig{font-size:52px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔨 打音法 固有振動数解析アプリ</h1>
+  <span class="tag">iPhone / PC 対応</span>
+  <div class="status"><span class="dot" id="dot"></span><span id="statusText">マイク未接続</span></div>
+</header>
+
+<div class="wrap">
+  <div id="secureWarn">
+    ⚠️ <b>このページはマイクを使えません。</b> iPhone/スマホでは <b>https://…</b> で開く必要があります（file:// や http:// では不可）。
+    HTTPSのURLでアクセスし直してください。PCのChrome/Safariなら file:// でも動く場合があります。
+  </div>
+
+  <div class="controls">
+    <button id="btnMic" class="primary">① マイク開始</button>
+    <button id="btnArm" disabled>② 打撃トリガー 待受</button>
+    <button id="btnRec" class="rec" disabled>● 録音開始</button>
+    <button id="btnFreeze" disabled>フリーズ解除</button>
+    <button id="btnNoise" disabled>🎚 ノイズ学習</button>
+    <label class="chk"><input type="checkbox" id="noiseOn"> ノイズ除去</label>
+  </div>
+
+  <div class="controls">
+    <div class="field"><label>FFTサイズ</label>
+      <select id="fftSize"><option>2048</option><option selected>4096</option><option>8192</option><option>16384</option></select></div>
+    <div class="field"><label>窓関数</label>
+      <select id="windowFn"><option value="hann" selected>Hann</option><option value="hamming">Hamming</option><option value="blackman">Blackman</option><option value="rect">矩形</option></select></div>
+    <div class="field range"><label>周波数上限: <span id="fmaxLbl">8000</span> Hz</label>
+      <input type="range" id="fmax" min="500" max="22050" value="8000" step="100"></div>
+    <div class="field range"><label>表示平滑化: <span id="smLbl">0.70</span></label>
+      <input type="range" id="smooth" min="0" max="0.95" value="0.70" step="0.05"></div>
+    <div class="field"><label>周波数平滑</label>
+      <select id="binSm"><option value="1">なし</option><option value="3" selected>3</option><option value="5">5</option><option value="9">9</option></select></div>
+    <div class="field range"><label>トリガー閾値: <span id="thLbl">0.15</span></label>
+      <input type="range" id="thresh" min="0.02" max="0.8" value="0.15" step="0.01"></div>
+    <div class="field"><label>保持(秒)</label>
+      <input type="number" id="holdSec" value="3" min="0.5" max="30" step="0.5" style="width:72px"></div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>波形（時間領域）<span class="val" id="rmsVal">RMS 0.000</span></h2>
+      <canvas id="wave"></canvas>
+    </div>
+    <div class="card">
+      <h2>スペクトル<span class="val" id="peakVal">瞬時 — Hz</span></h2>
+      <canvas id="spec"></canvas>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:12px">
+    <h2>スペクトログラム（時間 × 周波数）<span class="val" id="sgLbl">0–8000 Hz</span></h2>
+    <canvas id="sgram"></canvas>
+  </div>
+
+  <div class="twocol" style="margin-top:12px">
+    <div class="peaks">
+      <h2>推定固有振動数 f₀（卓越周波数・数値ホールド）</h2>
+      <div class="freqbig" id="f0wrap"><span id="f0big">—</span><small>Hz</small></div>
+      <div class="holdbar"><div id="holdFill"></div></div>
+      <div class="hint">最大強度の周波数 f₀ を設定秒数だけ固定表示します。橙色＝ホールド中。</div>
+      <table id="peakTable">
+        <thead><tr><th>#</th><th>周波数 [Hz]</th><th>強度 [dB]</th><th>Q</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="peaks">
+      <h2>保存 / 共有</h2>
+      <div style="display:flex; flex-direction:column; gap:8px">
+        <button class="save" id="saveWav" disabled>🎵 録音をWAV保存</button>
+        <button class="save" id="saveSpecCsv">📊 スペクトルをCSV保存</button>
+        <button class="save" id="savePng">🖼 全グラフをPNG保存</button>
+        <button class="save" id="saveJson">🗂 条件・結果をJSON保存</button>
+        <button class="save" id="logMeasure">📌 結果を測定ログに追加</button>
+      </div>
+      <div class="hint">iPhoneでは「共有シート」が開きます →「ファイルに保存」や「写真に保存」を選んでください。</div>
+    </div>
+  </div>
+
+  <div class="log">
+    <h2>測定ログ <span><button id="exportLogCsv" style="padding:8px 12px">CSV保存</button> <button id="clearLog" style="padding:8px 12px">クリア</button></span></h2>
+    <div class="logtable">
+      <table id="logTable">
+        <thead><tr><th>時刻</th><th>ラベル</th><th>f₀</th><th>第2</th><th>第3</th><th>RMS</th><th>FFT</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<footer>
+  打音法 固有振動数解析アプリ — Web Audio API / 単体HTML（iPhone・PC対応）。<br>
+  ① マイク開始 →（静かな状態で）🎚ノイズ学習・✔ノイズ除去 → ② 打撃トリガー待受 → ハンマー一打で f₀ を数値ホールド表示。<br>
+  ※iPhoneはHTTPSのURLで開いた場合のみマイクが使えます。
+</footer>
+
+<script>
+"use strict";
+const S={ctx:null,analyser:null,source:null,stream:null,raf:null,zeroGain:null,wakeLock:null,
+  running:false,armed:false,recording:false,frozen:false,
+  sampleRate:48000,fftSize:4096,timeData:null,
+  specSmooth:null,noiseProfile:null,
+  recPCM:null,recBlob:null,
+  capture:null,_live:null,sgOff:null,sgOffCtx:null,
+  lastTriggerT:0,f0Display:null,f0HoldUntil:0,heldPeaks:null,
+  H:{wave:240,spec:240,sg:220}};
+
+const $=id=>document.getElementById(id);
+const dot=$('dot'),statusText=$('statusText');
+const waveC=$('wave'),specC=$('spec'),sgC=$('sgram');
+const wctx=waveC.getContext('2d'),sctx=specC.getContext('2d'),sgctx=sgC.getContext('2d');
+const M={l:42,r:10,t:10,b:24};
+
+function heights(){const m=window.innerWidth<760;return{wave:m?180:240,spec:m?180:240,sg:m?160:220};}
+
+function setupCanvases(){
+  const dpr=window.devicePixelRatio||1; S.H=heights();
+  [[waveC,wctx,S.H.wave],[specC,sctx,S.H.spec]].forEach(([c,cx,h])=>{
+    const w=c.getBoundingClientRect().width; c.style.height=h+'px'; c.width=w*dpr; c.height=h*dpr; cx.setTransform(dpr,0,0,dpr,0,0);
+  });
+  const w=sgC.getBoundingClientRect().width; sgC.style.height=S.H.sg+'px'; sgC.width=w*dpr; sgC.height=S.H.sg*dpr; sgctx.setTransform(dpr,0,0,dpr,0,0);
+  const pw=Math.max(10,Math.floor(w-M.l-M.r)),ph=Math.max(10,Math.floor(S.H.sg-M.t-M.b));
+  const off=document.createElement('canvas');off.width=pw;off.height=ph;
+  S.sgOff=off;S.sgOffCtx=off.getContext('2d');S.sgOffCtx.fillStyle='#0a0f1a';S.sgOffCtx.fillRect(0,0,pw,ph);
+}
+
+/* ===== 窓関数・FFT ===== */
+function windowFunc(name,N){const w=new Float32Array(N);
+  for(let n=0;n<N;n++){const x=n/(N-1);
+    switch(name){case 'hann':w[n]=0.5-0.5*Math.cos(2*Math.PI*x);break;
+      case 'hamming':w[n]=0.54-0.46*Math.cos(2*Math.PI*x);break;
+      case 'blackman':w[n]=0.42-0.5*Math.cos(2*Math.PI*x)+0.08*Math.cos(4*Math.PI*x);break;
+      default:w[n]=1;}}
+  return w;}
+function fftMag(samples,sampleRate,winName){
+  let N=1;while(N*2<=samples.length)N*=2;const win=windowFunc(winName,N);
+  const re=new Float32Array(N),im=new Float32Array(N);
+  for(let i=0;i<N;i++)re[i]=samples[i]*win[i];
+  for(let i=1,j=0;i<N;i++){let bit=N>>1;for(;j&bit;bit>>=1)j^=bit;j^=bit;if(i<j){const t=re[i];re[i]=re[j];re[j]=t;}}
+  for(let len=2;len<=N;len<<=1){const ang=-2*Math.PI/len,wr=Math.cos(ang),wi=Math.sin(ang);
+    for(let i=0;i<N;i+=len){let cwr=1,cwi=0;
+      for(let k=0;k<len/2;k++){const a=i+k,b=i+k+len/2;
+        const tr=cwr*re[b]-cwi*im[b],ti=cwr*im[b]+cwi*re[b];
+        re[b]=re[a]-tr;im[b]=im[a]-ti;re[a]+=tr;im[a]+=ti;
+        const n=cwr*wr-cwi*wi;cwi=cwr*wi+cwi*wr;cwr=n;}}}
+  const half=N/2,mag=new Float32Array(half),hz=new Float32Array(half);
+  let wsum=0;for(let i=0;i<N;i++)wsum+=win[i];const cg=wsum/N||1;
+  for(let i=0;i<half;i++){mag[i]=Math.sqrt(re[i]*re[i]+im[i]*im[i])/(N*cg)*2;hz[i]=i*sampleRate/N;}
+  return{mag,hz,N};
+}
+
+/* ===== ノイズ処理＆平滑化 ===== */
+function processSpectrum(rawMag){
+  const n=rawMag.length;let m=Float32Array.from(rawMag);
+  if($('noiseOn').checked&&S.noiseProfile&&S.noiseProfile.length===n)
+    for(let i=0;i<n;i++)m[i]=Math.max(0,m[i]-1.5*S.noiseProfile[i]);
+  const k=+$('binSm').value;
+  if(k>1){const half=(k-1)/2,out=new Float32Array(n);
+    for(let i=0;i<n;i++){let s=0,c=0;for(let j=-half;j<=half;j++){const idx=i+j;if(idx>=0&&idx<n){s+=m[idx];c++;}}out[i]=s/c;}m=out;}
+  const a=+$('smooth').value;
+  if(!S.specSmooth||S.specSmooth.length!==n)S.specSmooth=Float32Array.from(m);
+  else for(let i=0;i<n;i++)S.specSmooth[i]=a*S.specSmooth[i]+(1-a)*m[i];
+  return S.specSmooth;
+}
+
+/* ===== ピーク検出 ===== */
+function findPeaks(mag,hz,fmax,maxPeaks=6){
+  const peaks=[];let gmax=1e-12;for(let i=0;i<mag.length;i++)if(mag[i]>gmax)gmax=mag[i];
+  const floor=gmax*0.05,df=hz[1]-hz[0];
+  for(let i=2;i<mag.length-2;i++){if(hz[i]>fmax)break;if(hz[i]<20)continue;
+    if(mag[i]>floor&&mag[i]>mag[i-1]&&mag[i]>mag[i+1]&&mag[i]>=mag[i-2]&&mag[i]>=mag[i+2]){
+      const a=mag[i-1],b=mag[i],c=mag[i+1];const d=0.5*(a-c)/(a-2*b+c||1e-9);
+      const fpeak=hz[i]+d*df,halfP=b/Math.SQRT2;let lo=i,hi=i;
+      while(lo>0&&mag[lo]>halfP)lo--;while(hi<mag.length-1&&mag[hi]>halfP)hi++;
+      const bw=(hi-lo)*df;peaks.push({f:fpeak,mag:b,q:bw>0?fpeak/bw:0});}}
+  peaks.sort((x,y)=>y.mag-x.mag);return peaks.slice(0,maxPeaks);
+}
+function niceTicks(max,target){const raw=max/target,mag=Math.pow(10,Math.floor(Math.log10(raw)));
+  const norm=raw/mag;let step;if(norm<1.5)step=1;else if(norm<3)step=2;else if(norm<7)step=5;else step=10;return step*mag;}
+
+/* ===== 波形 ===== */
+function drawWave(time){
+  const W=waveC.getBoundingClientRect().width,H=S.H.wave;
+  const pl=M.l,pr=W-M.r,pt=M.t,pb=H-M.b,pw=pr-pl,ph=pb-pt;
+  wctx.clearRect(0,0,W,H);const durMs=time.length/S.sampleRate*1000;
+  wctx.strokeStyle='#23304e';wctx.fillStyle='#9fb0d6';wctx.font='10px sans-serif';wctx.lineWidth=1;
+  for(let yv=-1;yv<=1;yv+=0.5){const y=pt+ph*(1-(yv+1)/2);
+    wctx.globalAlpha=yv===0?0.9:0.4;wctx.beginPath();wctx.moveTo(pl,y);wctx.lineTo(pr,y);wctx.stroke();wctx.globalAlpha=1;
+    wctx.textAlign='right';wctx.fillText(yv.toFixed(1),pl-4,y+3);}
+  const tstep=niceTicks(durMs,4);wctx.textAlign='center';
+  for(let t=0;t<=durMs+1e-6;t+=tstep){const x=pl+pw*(t/durMs);
+    wctx.globalAlpha=0.25;wctx.beginPath();wctx.moveTo(x,pt);wctx.lineTo(x,pb);wctx.stroke();wctx.globalAlpha=1;
+    wctx.fillText(t.toFixed(t<10?1:0),x,pb+13);}
+  wctx.fillStyle='#cfe0ff';wctx.fillText('時間 [ms]',pl+pw/2,H-2);
+  wctx.save();wctx.translate(10,pt+ph/2);wctx.rotate(-Math.PI/2);wctx.fillText('振幅 [-]',0,0);wctx.restore();
+  wctx.strokeStyle='#36d1c4';wctx.lineWidth=1.4;wctx.beginPath();
+  const n=time.length,step=Math.max(1,Math.floor(n/pw));
+  for(let i=0,x=0;i<n;i+=step,x++){const y=pt+ph*(1-(time[i]+1)/2);if(x===0)wctx.moveTo(pl,y);else wctx.lineTo(pl+x,y);}
+  wctx.stroke();
+  let sum=0;for(let i=0;i<n;i++)sum+=time[i]*time[i];const rms=Math.sqrt(sum/n);
+  $('rmsVal').textContent='RMS '+rms.toFixed(3);return rms;
+}
+
+/* ===== スペクトル ===== */
+function drawSpec(mag,hz,fmax,peaks){
+  const W=specC.getBoundingClientRect().width,H=S.H.spec;
+  const pl=M.l,pr=W-M.r,pt=M.t,pb=H-M.b,pw=pr-pl,ph=pb-pt;
+  sctx.clearRect(0,0,W,H);const dbFloor=-80;
+  let gmax=1e-9;const top=hz.findIndex(v=>v>fmax),lim=top<0?mag.length:top;
+  for(let i=0;i<lim;i++)if(mag[i]>gmax)gmax=mag[i];
+  sctx.strokeStyle='#23304e';sctx.fillStyle='#9fb0d6';sctx.font='10px sans-serif';sctx.lineWidth=1;sctx.textAlign='right';
+  for(let db=0;db>=dbFloor;db-=20){const y=pt+ph*(1-(db-dbFloor)/(0-dbFloor));
+    sctx.globalAlpha=0.4;sctx.beginPath();sctx.moveTo(pl,y);sctx.lineTo(pr,y);sctx.stroke();sctx.globalAlpha=1;
+    sctx.fillText(db+'',pl-4,y+3);}
+  const fstep=niceTicks(fmax,5);sctx.textAlign='center';
+  for(let f=0;f<=fmax+1e-6;f+=fstep){const x=pl+pw*(f/fmax);
+    sctx.globalAlpha=0.25;sctx.beginPath();sctx.moveTo(x,pt);sctx.lineTo(x,pb);sctx.stroke();sctx.globalAlpha=1;
+    sctx.fillText(f>=1000?(f/1000)+'k':f,x,pb+13);}
+  sctx.fillStyle='#cfe0ff';sctx.fillText('周波数 [Hz]',pl+pw/2,H-2);
+  sctx.save();sctx.translate(10,pt+ph/2);sctx.rotate(-Math.PI/2);sctx.fillText('強度 [dB]',0,0);sctx.restore();
+  sctx.beginPath();
+  for(let i=0;i<lim;i++){const x=pl+pw*(hz[i]/fmax);const db=20*Math.log10(mag[i]/gmax+1e-9);
+    const y=pt+ph*(1-(Math.max(db,dbFloor)-dbFloor)/(0-dbFloor));if(i===0)sctx.moveTo(x,y);else sctx.lineTo(x,y);}
+  sctx.lineTo(pr,pb);sctx.lineTo(pl,pb);sctx.closePath();sctx.fillStyle='rgba(255,180,84,0.12)';sctx.fill();
+  sctx.beginPath();
+  for(let i=0;i<lim;i++){const x=pl+pw*(hz[i]/fmax);const db=20*Math.log10(mag[i]/gmax+1e-9);
+    const y=pt+ph*(1-(Math.max(db,dbFloor)-dbFloor)/(0-dbFloor));if(i===0)sctx.moveTo(x,y);else sctx.lineTo(x,y);}
+  sctx.strokeStyle='#ffb454';sctx.lineWidth=1.5;sctx.stroke();
+  if(peaks)peaks.forEach((p,k)=>{if(p.f>fmax)return;const x=pl+pw*(p.f/fmax);
+    const db=20*Math.log10(p.mag/gmax+1e-9);const y=pt+ph*(1-(Math.max(db,dbFloor)-dbFloor)/(0-dbFloor));
+    sctx.fillStyle=k===0?'#36d1c4':'#e6ecff';sctx.beginPath();sctx.arc(x,y,k===0?5:3,0,7);sctx.fill();
+    sctx.fillStyle=k===0?'#36d1c4':'#9fb0d6';sctx.font=(k===0?'bold 11px':'10px')+' sans-serif';sctx.textAlign='center';
+    sctx.fillText(Math.round(p.f)+'Hz',Math.min(Math.max(x,pl+20),pr-20),Math.max(y-7,pt+10));});
+}
+
+/* ===== スペクトログラム ===== */
+function heat(t){const stops=[[8,8,30],[60,15,110],[150,30,120],[220,70,60],[250,160,40],[255,255,170]];
+  const x=t*(stops.length-1),i=Math.floor(x),f=x-i,a=stops[i],b=stops[Math.min(i+1,stops.length-1)];
+  return[a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f].map(Math.round);}
+function pushSgram(mag,hz,fmax){
+  const off=S.sgOffCtx,pw=S.sgOff.width,ph=S.sgOff.height;
+  const img=off.getImageData(1,0,pw-1,ph);off.putImageData(img,0,0);
+  let gmax=1e-9;const top=hz.findIndex(v=>v>fmax),lim=top<0?mag.length:top;
+  for(let i=0;i<lim;i++)if(mag[i]>gmax)gmax=mag[i];
+  const df=hz[1]-hz[0]||1,col=off.createImageData(1,ph);
+  for(let y=0;y<ph;y++){const f=(1-y/ph)*fmax,idx=Math.round(f/df);let v=idx<lim?mag[idx]/gmax:0;
+    const db=20*Math.log10(v+1e-9);let t=Math.max(0,Math.min(1,(db+80)/80));
+    const[r,g,b]=heat(t),o=y*4;col.data[o]=r;col.data[o+1]=g;col.data[o+2]=b;col.data[o+3]=255;}
+  off.putImageData(col,pw-1,0);
+}
+function drawSgram(fmax){
+  const W=sgC.getBoundingClientRect().width,H=S.H.sg;
+  const pl=M.l,pr=W-M.r,pt=M.t,pb=H-M.b,pw=pr-pl,ph=pb-pt;
+  sgctx.clearRect(0,0,W,H);sgctx.drawImage(S.sgOff,pl,pt,pw,ph);
+  sgctx.strokeStyle='#2b3656';sgctx.lineWidth=1;sgctx.strokeRect(pl,pt,pw,ph);
+  sgctx.fillStyle='#9fb0d6';sgctx.font='10px sans-serif';sgctx.textAlign='right';
+  const fstep=niceTicks(fmax,4);
+  for(let f=0;f<=fmax+1e-6;f+=fstep){const y=pt+ph*(1-f/fmax);
+    sgctx.fillText(f>=1000?(f/1000)+'k':f,pl-4,y+3);
+    sgctx.strokeStyle='rgba(255,255,255,0.08)';sgctx.beginPath();sgctx.moveTo(pl,y);sgctx.lineTo(pr,y);sgctx.stroke();}
+  sgctx.fillStyle='#cfe0ff';sgctx.textAlign='center';sgctx.fillText('← 過去   時間   現在 →',pl+pw/2,H-3);
+  sgctx.save();sgctx.translate(10,pt+ph/2);sgctx.rotate(-Math.PI/2);sgctx.fillText('周波数 [Hz]',0,0);sgctx.restore();
+}
+
+/* ===== 卓越周波数ホールド ===== */
+function updateF0(peaks){
+  const now=performance.now(),holdMs=(+$('holdSec').value)*1000,f0=peaks&&peaks[0]?peaks[0].f:null;
+  if(f0!=null&&now>=S.f0HoldUntil){S.f0Display=f0;S.heldPeaks=peaks;S.f0HoldUntil=now+holdMs;renderPeaks(peaks);}
+  if(S.f0Display!=null)$('f0big').textContent=S.f0Display.toFixed(1);
+  const remain=Math.max(0,S.f0HoldUntil-now),ratio=holdMs>0?remain/holdMs:0;
+  $('holdFill').style.width=(ratio*100)+'%';$('f0wrap').classList.toggle('hold',remain>0);
+}
+function forceF0(peaks){const now=performance.now(),holdMs=(+$('holdSec').value)*1000;
+  S.f0Display=peaks&&peaks[0]?peaks[0].f:null;S.heldPeaks=peaks;S.f0HoldUntil=now+holdMs;renderPeaks(peaks);}
+function renderPeaks(peaks){
+  $('f0big').textContent=peaks&&peaks[0]?peaks[0].f.toFixed(1):'—';
+  const tb=$('peakTable').querySelector('tbody');tb.innerHTML='';const ref=peaks&&peaks[0]?peaks[0].mag:1;
+  (peaks||[]).forEach((p,i)=>{const tr=document.createElement('tr');const db=20*Math.log10(p.mag/ref+1e-9);
+    tr.innerHTML=`<td class="idx">f${i+1}</td><td>${p.f.toFixed(1)}</td><td>${db.toFixed(1)}</td><td>${p.q?p.q.toFixed(1):'—'}</td>`;tb.appendChild(tr);});
+}
+
+/* ===== ループ ===== */
+function loop(){
+  if(!S.running)return;S.raf=requestAnimationFrame(loop);
+  S.analyser.getFloatTimeDomainData(S.timeData);const rms=drawWave(S.timeData);const fmax=+$('fmax').value;
+  if(!S.frozen){
+    const{mag,hz}=fftMag(S.timeData,S.sampleRate,$('windowFn').value);
+    const sm=processSpectrum(mag);const peaks=findPeaks(sm,hz,fmax);
+    drawSpec(sm,hz,fmax,peaks);pushSgram(sm,hz,fmax);drawSgram(fmax);
+    S._live={mag:sm,hz,peaks,rms};$('peakVal').textContent='瞬時 '+(peaks[0]?Math.round(peaks[0].f):'—')+' Hz';
+    updateF0(peaks);
+  }else updateF0(S.capture?S.capture.peaks:(S._live?S._live.peaks:[]));
+  if(S.armed&&rms>+$('thresh').value){const now=performance.now();if(now-S.lastTriggerT>400){S.lastTriggerT=now;captureImpact();}}
+}
+function captureImpact(){
+  const fmax=+$('fmax').value;S.analyser.getFloatTimeDomainData(S.timeData);
+  const{mag,hz}=fftMag(S.timeData,S.sampleRate,$('windowFn').value);let m=Float32Array.from(mag);
+  if($('noiseOn').checked&&S.noiseProfile&&S.noiseProfile.length===m.length)for(let i=0;i<m.length;i++)m[i]=Math.max(0,m[i]-1.5*S.noiseProfile[i]);
+  const peaks=findPeaks(m,hz,fmax);let sum=0;for(let i=0;i<S.timeData.length;i++)sum+=S.timeData[i]*S.timeData[i];
+  freezeWith({mag:m,hz,peaks,rms:Math.sqrt(sum/S.timeData.length)},'打撃トリガー');
+  dot.className='dot rec';setTimeout(()=>{if(S.running)dot.className='dot armed';},300);
+}
+function freezeWith(data,label){
+  S.frozen=true;S.capture={freqMag:data.mag,freqHz:data.hz,peaks:data.peaks,rms:data.rms,time:new Date(),label};
+  drawSpec(data.mag,data.hz,+$('fmax').value,data.peaks);forceF0(data.peaks);
+  $('btnFreeze').disabled=false;statusText.textContent=label+' 固定中（f₀='+(data.peaks[0]?Math.round(data.peaks[0].f):'—')+'Hz）';
+}
+
+/* ===== マイク（iOS対応） ===== */
+async function startMic(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    alert('このブラウザ/接続ではマイクを使えません。HTTPSのURLで開いてください。');return;}
+  try{
+    S.ctx=new(window.AudioContext||window.webkitAudioContext)();
+    if(S.ctx.state==='suspended')await S.ctx.resume();   // iOSはユーザー操作内でresume必須
+    S.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+  }catch(e){alert('マイクにアクセスできません: '+e.message+'\n（iPhoneはHTTPS、かつマイク許可が必要です）');return;}
+  S.sampleRate=S.ctx.sampleRate;
+  S.analyser=S.ctx.createAnalyser();S.fftSize=+$('fftSize').value;S.analyser.fftSize=S.fftSize;S.analyser.smoothingTimeConstant=0;
+  S.timeData=new Float32Array(S.analyser.fftSize);
+  S.source=S.ctx.createMediaStreamSource(S.stream);S.source.connect(S.analyser);
+  $('fmax').max=Math.floor(S.sampleRate/2);
+  S.running=true;S.frozen=false;S.specSmooth=null;
+  dot.className='dot on';statusText.textContent='マイク接続中 / Fs='+Math.round(S.sampleRate)+'Hz';
+  $('btnMic').textContent='マイク停止';['btnArm','btnRec','btnNoise'].forEach(id=>$(id).disabled=false);
+  requestWake();setupCanvases();loop();
+}
+function stopMic(){
+  S.running=false;S.armed=false;if(S.raf)cancelAnimationFrame(S.raf);
+  if(S.recording)stopRec();if(S.stream)S.stream.getTracks().forEach(t=>t.stop());if(S.ctx)S.ctx.close();
+  releaseWake();dot.className='dot';statusText.textContent='マイク未接続';
+  $('btnMic').textContent='① マイク開始';['btnArm','btnRec','btnNoise'].forEach(id=>$(id).disabled=true);
+  $('btnArm').textContent='② 打撃トリガー 待受';
+}
+/* 画面スリープ防止 */
+async function requestWake(){try{if('wakeLock'in navigator)S.wakeLock=await navigator.wakeLock.request('screen');}catch(e){}}
+function releaseWake(){try{S.wakeLock&&S.wakeLock.release();}catch(e){}S.wakeLock=null;}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&S.running)requestWake();});
+
+/* ===== ノイズ学習 ===== */
+function learnNoise(){
+  let frames=0,acc=null;statusText.textContent='ノイズ学習中…（静かに）';
+  const id=setInterval(()=>{S.analyser.getFloatTimeDomainData(S.timeData);
+    const{mag}=fftMag(S.timeData,S.sampleRate,$('windowFn').value);
+    if(!acc)acc=Float32Array.from(mag);else for(let i=0;i<mag.length;i++)acc[i]+=mag[i];
+    if(++frames>=30){clearInterval(id);for(let i=0;i<acc.length;i++)acc[i]/=frames;
+      S.noiseProfile=acc;$('noiseOn').checked=true;statusText.textContent='ノイズ学習完了 → 除去ON';}},30);
+}
+
+/* ===== 録音（iOSでハウリングしないようゼロゲイン接続） ===== */
+let recProcessor=null,recBuffers=[],recLen=0;
+function startRec(){
+  recBuffers=[];recLen=0;const node=S.ctx.createScriptProcessor(4096,1,1);recProcessor=node;
+  node.onaudioprocess=e=>{const ch=e.inputBuffer.getChannelData(0);recBuffers.push(new Float32Array(ch));recLen+=ch.length;};
+  S.zeroGain=S.ctx.createGain();S.zeroGain.gain.value=0;
+  S.source.connect(node);node.connect(S.zeroGain);S.zeroGain.connect(S.ctx.destination);
+  S.recording=true;dot.className='dot rec';$('btnRec').textContent='● 録音停止';statusText.textContent='連続録音中…';
+}
+function stopRec(){
+  if(recProcessor){recProcessor.disconnect();S.source.disconnect(recProcessor);recProcessor=null;}
+  if(S.zeroGain){S.zeroGain.disconnect();S.zeroGain=null;}
+  S.recording=false;const pcm=new Float32Array(recLen);let off=0;recBuffers.forEach(b=>{pcm.set(b,off);off+=b.length;});
+  S.recPCM=pcm;S.recBlob=encodeWAV(pcm,S.sampleRate);$('saveWav').disabled=false;$('btnRec').textContent='● 録音開始';
+  if(S.running)dot.className=S.armed?'dot armed':'dot on';
+  statusText.textContent='録音完了 ('+(recLen/S.sampleRate).toFixed(1)+'秒)';
+}
+function encodeWAV(samples,sr){
+  const buf=new ArrayBuffer(44+samples.length*2),v=new DataView(buf);
+  const ws=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
+  ws(0,'RIFF');v.setUint32(4,36+samples.length*2,true);ws(8,'WAVE');ws(12,'fmt ');v.setUint32(16,16,true);
+  v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);
+  v.setUint16(32,2,true);v.setUint16(34,16,true);ws(36,'data');v.setUint32(40,samples.length*2,true);
+  let o=44;for(let i=0;i<samples.length;i++){let s=Math.max(-1,Math.min(1,samples[i]));v.setInt16(o,s<0?s*0x8000:s*0x7FFF,true);o+=2;}
+  return new Blob([buf],{type:'audio/wav'});
+}
+
+/* ===== 保存／共有（iOS=共有シート、PC=ダウンロード） ===== */
+async function saveBlob(blob,name){
+  try{
+    const file=new File([blob],name,{type:blob.type});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:name});return;
+    }
+  }catch(e){if(e&&e.name==='AbortError')return;}
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');
+  a.href=url;a.download=name;a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+}
+function tstamp(){const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());}
+function getActiveResult(){return S.capture||(S._live&&{freqMag:S._live.mag,freqHz:S._live.hz,peaks:S._live.peaks,rms:S._live.rms,time:new Date(),label:'ライブ'});}
+
+$('saveWav').onclick=()=>{if(S.recBlob)saveBlob(S.recBlob,'打音録音_'+tstamp()+'.wav');};
+$('saveSpecCsv').onclick=()=>{const r=getActiveResult();if(!r){alert('解析データがありません。');return;}
+  const fmax=+$('fmax').value;let csv='Frequency_Hz,Magnitude,Magnitude_dB\n';
+  let gmax=1e-9;for(let i=0;i<r.freqMag.length;i++)if(r.freqMag[i]>gmax)gmax=r.freqMag[i];
+  for(let i=0;i<r.freqMag.length;i++){if(r.freqHz[i]>fmax)break;const db=20*Math.log10(r.freqMag[i]/gmax+1e-9);
+    csv+=r.freqHz[i].toFixed(2)+','+r.freqMag[i].toExponential(5)+','+db.toFixed(3)+'\n';}
+  saveBlob(new Blob(['﻿'+csv],{type:'text/csv'}),'スペクトル_'+tstamp()+'.csv');};
+$('savePng').onclick=()=>{
+  const W=Math.max(waveC.width,specC.width,sgC.width),pad=30;
+  const out=document.createElement('canvas');out.width=W;out.height=waveC.height+specC.height+sgC.height+pad*4;
+  const o=out.getContext('2d');o.fillStyle='#0e1320';o.fillRect(0,0,out.width,out.height);
+  const r=getActiveResult();o.fillStyle='#e6ecff';o.font='bold 20px sans-serif';
+  o.fillText('打音法 解析結果  f₀='+(S.f0Display!=null?S.f0Display.toFixed(1):(r&&r.peaks[0]?r.peaks[0].f.toFixed(1):'—'))+' Hz   '+new Date().toLocaleString('ja-JP'),12,24);
+  let y=pad+8;o.font='13px sans-serif';o.fillStyle='#9fb0d6';
+  o.fillText('波形（時間領域）',12,y);y+=6;o.drawImage(waveC,0,y,waveC.width,waveC.height);y+=waveC.height+pad;
+  o.fillText('スペクトル（周波数領域）',12,y);y+=6;o.drawImage(specC,0,y,specC.width,specC.height);y+=specC.height+pad;
+  o.fillText('スペクトログラム',12,y);y+=6;o.drawImage(sgC,0,y,sgC.width,sgC.height);
+  out.toBlob(b=>saveBlob(b,'打音グラフ_'+tstamp()+'.png'));};
+$('saveJson').onclick=()=>{const r=getActiveResult();if(!r){alert('解析データがありません。');return;}
+  const obj={app:'打音法 固有振動数解析アプリ v3',timestamp:new Date().toISOString(),
+    conditions:{sampleRate_Hz:S.sampleRate,fftSize:S.fftSize,window:$('windowFn').value,freqMax_Hz:+$('fmax').value,
+      smoothing:+$('smooth').value,binSmoothing:+$('binSm').value,noiseReduction:$('noiseOn').checked,
+      triggerThreshold:+$('thresh').value,f0HoldSec:+$('holdSec').value},
+    result:{label:r.label,rms:r.rms,fundamental_Hz:r.peaks[0]?+r.peaks[0].f.toFixed(2):null,
+      peaks:r.peaks.map((p,i)=>({rank:i+1,frequency_Hz:+p.f.toFixed(2),magnitude:p.mag,Q:p.q?+p.q.toFixed(2):null}))}};
+  saveBlob(new Blob([JSON.stringify(obj,null,2)],{type:'application/json'}),'打音解析_'+tstamp()+'.json');};
+
+/* ===== ログ ===== */
+const LOG=[];
+$('logMeasure').onclick=()=>{const r=S.capture||getActiveResult();if(!r||!r.peaks.length){alert('ピークがありません。');return;}
+  const label=prompt('測定ラベル（試料名・打点など）:','測定'+(LOG.length+1));if(label===null)return;
+  LOG.push({time:new Date().toLocaleTimeString('ja-JP'),label,
+    f0:r.peaks[0]?r.peaks[0].f.toFixed(1):'',f1:r.peaks[1]?r.peaks[1].f.toFixed(1):'',f2:r.peaks[2]?r.peaks[2].f.toFixed(1):'',
+    rms:r.rms.toFixed(3),fft:S.fftSize});renderLog();};
+function renderLog(){const tb=$('logTable').querySelector('tbody');tb.innerHTML='';
+  LOG.forEach(r=>{const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${r.time}</td><td>${r.label}</td><td class="idx">${r.f0}</td><td>${r.f1}</td><td>${r.f2}</td><td>${r.rms}</td><td>${r.fft}</td>`;tb.appendChild(tr);});}
+$('clearLog').onclick=()=>{if(confirm('測定ログを消去しますか？')){LOG.length=0;renderLog();}};
+$('exportLogCsv').onclick=()=>{if(!LOG.length){alert('ログが空です。');return;}
+  let csv='時刻,ラベル,f0_Hz,f2_Hz,f3_Hz,RMS,FFT\n';LOG.forEach(r=>csv+=`${r.time},${r.label},${r.f0},${r.f1},${r.f2},${r.rms},${r.fft}\n`);
+  saveBlob(new Blob(['﻿'+csv],{type:'text/csv'}),'測定ログ_'+tstamp()+'.csv');};
+
+/* ===== 配線 ===== */
+$('btnMic').onclick=()=>{S.running?stopMic():startMic();};
+$('btnArm').onclick=()=>{S.armed=!S.armed;$('btnArm').textContent=S.armed?'② 待受解除':'② 打撃トリガー 待受';
+  dot.className=S.armed?'dot armed':'dot on';statusText.textContent=S.armed?'打撃待受中… 一打してください':'マイク接続中';};
+$('btnRec').onclick=()=>{S.recording?stopRec():startRec();};
+$('btnFreeze').onclick=()=>{if(S.frozen){S.frozen=false;S.capture=null;$('btnFreeze').disabled=true;statusText.textContent='ライブ解析中';}};
+$('btnNoise').onclick=learnNoise;
+$('fftSize').onchange=()=>{if(S.analyser){S.fftSize=+$('fftSize').value;S.analyser.fftSize=S.fftSize;S.timeData=new Float32Array(S.analyser.fftSize);S.specSmooth=null;S.noiseProfile=null;}};
+$('fmax').oninput=()=>{$('fmaxLbl').textContent=$('fmax').value;$('sgLbl').textContent='0–'+$('fmax').value+' Hz';};
+$('smooth').oninput=()=>{$('smLbl').textContent=(+$('smooth').value).toFixed(2);};
+$('thresh').oninput=()=>{$('thLbl').textContent=(+$('thresh').value).toFixed(2);};
+specC.onclick=()=>{if(S.running&&S._live)freezeWith({mag:S._live.mag,hz:S._live.hz,peaks:S._live.peaks,rms:S._live.rms},'手動フリーズ');};
+let rT;window.addEventListener('resize',()=>{clearTimeout(rT);rT=setTimeout(()=>{if(S.running)setupCanvases();},200);});
+window.addEventListener('orientationchange',()=>{setTimeout(()=>{if(S.running)setupCanvases();},300);});
+
+/* 起動時：セキュアでなければ警告 */
+if(!window.isSecureContext && location.protocol!=='file:'){ $('secureWarn').style.display='block'; }
+else if(location.protocol==='file:'){ /* PCローカルは動く場合あり。警告は控えめに出さない */ }
+</script>
+</body>
+</html>
